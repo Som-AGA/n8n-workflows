@@ -1,0 +1,340 @@
+{
+  "name": "Sourcing Candidats - Fiche de Poste",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Configuration requise\n\n### 1. Clé API Google Custom Search (gratuit - 100 requêtes/jour)\n1. Aller sur https://console.cloud.google.com/\n2. Créer un projet > Activer \"Custom Search API\"\n3. Créer une clé API dans \"Identifiants\"\n4. Aller sur https://programmablesearchengine.google.com/\n5. Créer un moteur de recherche > cocher \"Rechercher sur tout le Web\"\n6. Copier l'ID du moteur (cx)\n\n### 2. Variables d'environnement n8n\nDans n8n, aller dans Settings > Variables et créer :\n- `GOOGLE_API_KEY` : votre clé API Google\n- `GOOGLE_CX` : l'ID de votre moteur de recherche\n\n### 3. Credentials Anthropic\nDans n8n, aller dans Credentials > New >\nChercher \"Anthropic\" > Entrer votre clé API Claude\nPuis associer ce credential aux 2 nœuds \"Claude\" du workflow.\n\n### 4. Lancement\nActiver le workflow puis ouvrir l'URL du formulaire (visible dans le nœud Formulaire).",
+        "height": 556,
+        "width": 420,
+        "color": 4
+      },
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "name": "Instructions de configuration",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-480, 40]
+    },
+    {
+      "parameters": {
+        "formTitle": "Sourcing Candidats",
+        "formDescription": "Collez votre fiche de poste pour lancer une recherche automatique de candidats sur LinkedIn, Indeed, Welcome to the Jungle et le web.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Fiche de Poste",
+              "fieldType": "textarea",
+              "placeholder": "Collez ici le texte complet de la fiche de poste (titre, missions, compétences, localisation, etc.)",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Années d'expérience minimum",
+              "fieldType": "number",
+              "placeholder": "3",
+              "requiredField": false
+            },
+            {
+              "fieldLabel": "Rayon géographique (km)",
+              "fieldType": "number",
+              "placeholder": "50",
+              "requiredField": false
+            },
+            {
+              "fieldLabel": "Type de contrat",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  { "option": "CDI" },
+                  { "option": "CDD" },
+                  { "option": "Freelance" },
+                  { "option": "Stage" },
+                  { "option": "Alternance" },
+                  { "option": "Tous" }
+                ]
+              },
+              "requiredField": false
+            }
+          ]
+        },
+        "respondMode": "lastNode"
+      },
+      "id": "a0000000-0000-0000-0000-000000000010",
+      "name": "Formulaire Sourcing",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "model": "claude-sonnet-4-20250514",
+        "options": {}
+      },
+      "id": "a0000000-0000-0000-0000-000000000020",
+      "name": "Claude - Analyse",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [300, 520],
+      "credentials": {
+        "anthropicApi": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Fiche de poste à analyser :\n---\n{{ $json['Fiche de Poste'] }}\n---\n\nParamètres supplémentaires :\n- Années d'expérience minimum demandées par l'utilisateur : {{ $json[\"Années d'expérience minimum\"] || 'non spécifié' }}\n- Type de contrat souhaité : {{ $json['Type de contrat'] || 'non spécifié' }}\n- Rayon géographique : {{ $json['Rayon géographique (km)'] || 'non spécifié' }} km",
+        "options": {
+          "systemMessage": "Tu es un expert en recrutement. Analyse la fiche de poste fournie et extrais les informations structurées.\n\nRéponds UNIQUEMENT avec un objet JSON valide (sans markdown, sans ```), avec cette structure exacte :\n{\n  \"titre_poste\": \"le titre exact du poste\",\n  \"competences_cles\": [\"compétence1\", \"compétence2\", ...],\n  \"localisation\": \"ville ou région mentionnée\",\n  \"niveau_experience\": \"junior|confirmé|senior\",\n  \"annees_experience_min\": 3,\n  \"type_contrat\": \"CDI|CDD|Freelance|Stage|Alternance\",\n  \"secteur\": \"secteur d'activité\",\n  \"salaire\": \"fourchette si mentionnée ou null\",\n  \"mots_cles\": [\"mot1\", \"mot2\", \"mot3\", \"mot4\", \"mot5\"]\n}\n\nPour mots_cles, génère 5 à 8 mots-clés pertinents pour rechercher des candidats sur Google (termes techniques, outils, certifications, synonymes du poste).\nSi une information n'est pas disponible, mets null."
+        }
+      },
+      "id": "a0000000-0000-0000-0000-000000000030",
+      "name": "Analyse Fiche de Poste",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Récupérer le résultat de l'analyse IA\nconst aiOutput = $input.first().json.output;\nlet criteria;\ntry {\n  const jsonMatch = aiOutput.match(/\\{[\\s\\S]*\\}/);\n  criteria = JSON.parse(jsonMatch ? jsonMatch[0] : aiOutput);\n} catch(e) {\n  criteria = {\n    titre_poste: 'candidat',\n    localisation: '',\n    competences_cles: [],\n    mots_cles: []\n  };\n}\n\nconst titre = criteria.titre_poste || 'candidat';\nconst ville = criteria.localisation || '';\nconst competences = criteria.competences_cles || [];\nconst motsCles = criteria.mots_cles || [];\nconst experience = criteria.niveau_experience || '';\n\n// Stocker les critères pour les nœuds suivants\nconst criteriaStr = JSON.stringify(criteria);\n\n// Générer les requêtes de recherche Google pour chaque plateforme\nconst queries = [];\n\n// --- LinkedIn (3 requêtes variées) ---\nqueries.push({\n  query: `site:linkedin.com/in \"${titre}\" \"${ville}\"`,\n  platform: 'LinkedIn'\n});\nif (competences.length > 0) {\n  queries.push({\n    query: `site:linkedin.com/in ${titre} ${competences.slice(0, 3).join(' ')} ${ville}`,\n    platform: 'LinkedIn'\n  });\n}\nif (motsCles.length > 0) {\n  queries.push({\n    query: `site:linkedin.com/in ${motsCles.slice(0, 4).join(' ')} ${ville}`,\n    platform: 'LinkedIn'\n  });\n}\n\n// --- Indeed (2 requêtes) ---\nqueries.push({\n  query: `site:indeed.fr \"${titre}\" \"${ville}\"`,\n  platform: 'Indeed'\n});\nqueries.push({\n  query: `site:indeed.fr ${titre} ${competences.slice(0, 2).join(' ')} ${ville}`,\n  platform: 'Indeed'\n});\n\n// --- Welcome to the Jungle (2 requêtes) ---\nqueries.push({\n  query: `site:welcometothejungle.com \"${titre}\" \"${ville}\"`,\n  platform: 'WTTJ'\n});\nif (motsCles.length > 0) {\n  queries.push({\n    query: `site:welcometothejungle.com ${motsCles.slice(0, 3).join(' ')} ${ville}`,\n    platform: 'WTTJ'\n  });\n}\n\n// --- Recherche web générale (2 requêtes) ---\nqueries.push({\n  query: `\"${titre}\" \"${ville}\" CV OR profil OR resume ${experience}`,\n  platform: 'Web'\n});\nqueries.push({\n  query: `\"${titre}\" \"${ville}\" ${competences.slice(0, 3).join(' ')} profil professionnel`,\n  platform: 'Web'\n});\n\nreturn queries.map(q => ({ json: { ...q, criteria: criteriaStr } }));"
+      },
+      "id": "a0000000-0000-0000-0000-000000000040",
+      "name": "Générer Requêtes Google",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [560, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/customsearch/v1",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $env.GOOGLE_API_KEY }}"
+            },
+            {
+              "name": "cx",
+              "value": "={{ $env.GOOGLE_CX }}"
+            },
+            {
+              "name": "q",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "num",
+              "value": "10"
+            },
+            {
+              "name": "gl",
+              "value": "fr"
+            },
+            {
+              "name": "lr",
+              "value": "lang_fr"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a0000000-0000-0000-0000-000000000050",
+      "name": "Google Custom Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, 300],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Agréger tous les résultats Google et dédupliquer\nconst allItems = $input.all();\nconst candidates = [];\nconst seen = new Set();\n\n// Récupérer les critères depuis le premier item\nlet criteria = {};\ntry {\n  const firstWithCriteria = allItems.find(item => item.json.criteria);\n  if (firstWithCriteria) {\n    criteria = JSON.parse(firstWithCriteria.json.criteria);\n  }\n} catch(e) {}\n\nfor (const item of allItems) {\n  const results = item.json.items || [];\n\n  for (const result of results) {\n    const url = result.link || '';\n\n    // Ignorer les doublons par URL\n    if (seen.has(url)) continue;\n    seen.add(url);\n\n    // Ignorer les pages non pertinentes (pages d'accueil, offres d'emploi génériques)\n    if (url.match(/\\/(jobs|offres|recherche|search|login|signup)\\/?$/)) continue;\n\n    // Déterminer la plateforme source\n    let plateforme = 'Web';\n    if (url.includes('linkedin.com')) plateforme = 'LinkedIn';\n    else if (url.includes('indeed.')) plateforme = 'Indeed';\n    else if (url.includes('welcometothejungle')) plateforme = 'WTTJ';\n\n    candidates.push({\n      nom: (result.title || 'Inconnu').replace(/ \\| LinkedIn$| - Indeed| \\| Welcome to the Jungle$/gi, '').trim(),\n      url: url,\n      plateforme: plateforme,\n      snippet: (result.snippet || '').replace(/\\n/g, ' ').trim(),\n      titre_page: result.title || ''\n    });\n  }\n}\n\n// Limiter à 50 candidats pour l'évaluation IA (sera réduit à 30 après scoring)\nconst topCandidates = candidates.slice(0, 50);\n\nreturn [{\n  json: {\n    candidates: topCandidates,\n    criteria: criteria,\n    total_brut: candidates.length\n  }\n}];"
+      },
+      "id": "a0000000-0000-0000-0000-000000000060",
+      "name": "Parser et Dédupliquer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "model": "claude-sonnet-4-20250514",
+        "options": {
+          "maxTokensToSample": 4096
+        }
+      },
+      "id": "a0000000-0000-0000-0000-000000000070",
+      "name": "Claude - Scoring",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [1340, 520],
+      "credentials": {
+        "anthropicApi": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Critères du poste recherché :\n{{ JSON.stringify($json.criteria, null, 2) }}\n\nNombre total de candidats trouvés : {{ $json.total_brut }}\n\nListe des candidats à évaluer ({{ $json.candidates.length }}) :\n{{ JSON.stringify($json.candidates, null, 2) }}\n\nÉvalue chaque candidat et retourne le résultat en JSON.",
+        "options": {
+          "systemMessage": "Tu es un expert en recrutement travaillant pour SOMAFI, entreprise spécialisée dans la fermeture industrielle et l'équipement de quai.\n\nTu reçois une liste de candidats trouvés en ligne et les critères d'un poste à pourvoir.\n\nPour chaque candidat, évalue sur la base des informations disponibles (titre de page et snippet Google) :\n- score_global (0-100) : adéquation globale avec le poste\n- score_competences (0-100) : correspondance des compétences techniques\n- score_geographie (0-100) : proximité géographique\n- score_experience (0-100) : niveau d'expérience adapté\n- experience_domaine_industriel : \"oui\", \"non\" ou \"possible\" — indique si le candidat semble avoir travaillé dans le domaine de la fermeture industrielle, équipement de quai, portes sectionnelles, quais de chargement, logistique industrielle, ou secteur industriel similaire\n- commentaire : 1-2 phrases justifiant le score\n\nRéponds UNIQUEMENT avec un tableau JSON valide (sans markdown, sans ```) :\n[\n  {\n    \"nom\": \"...\",\n    \"titre\": \"poste actuel ou dernier poste connu\",\n    \"localisation\": \"ville si identifiable\",\n    \"plateforme\": \"LinkedIn|Indeed|WTTJ|Web\",\n    \"url\": \"...\",\n    \"score_global\": 75,\n    \"score_competences\": 80,\n    \"score_geographie\": 90,\n    \"score_experience\": 60,\n    \"experience_domaine_industriel\": \"possible\",\n    \"commentaire\": \"...\"\n  }\n]\n\nOrdonne par score_global décroissant. Si tu ne peux pas évaluer un candidat (page non pertinente), mets un score_global de 0."
+        }
+      },
+      "id": "a0000000-0000-0000-0000-000000000080",
+      "name": "Scorer Candidats",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Parser la sortie de l'IA et formater pour le CSV\nconst aiOutput = $input.first().json.output;\nlet candidates;\n\ntry {\n  // Extraire le tableau JSON de la réponse\n  const match = aiOutput.match(/\\[[\\s\\S]*\\]/);\n  candidates = JSON.parse(match ? match[0] : aiOutput);\n} catch(e) {\n  // Fallback : retourner une erreur lisible\n  return [{\n    json: {\n      'Erreur': 'Impossible de parser les résultats IA',\n      'Sortie brute': aiOutput.substring(0, 500)\n    }\n  }];\n}\n\n// Trier par score global décroissant et prendre les 30 meilleurs\ncandidates.sort((a, b) => (b.score_global || 0) - (a.score_global || 0));\nconst top30 = candidates.filter(c => c.score_global > 0).slice(0, 30);\n\n// Formater chaque candidat comme une ligne CSV\nreturn top30.map((c, index) => ({\n  json: {\n    'Rang': index + 1,\n    'Nom': c.nom || '',\n    'Titre / Poste actuel': c.titre || '',\n    'Localisation': c.localisation || '',\n    'Plateforme': c.plateforme || '',\n    'URL Profil': c.url || '',\n    'Score Global (/100)': c.score_global || 0,\n    'Score Compétences (/100)': c.score_competences || 0,\n    'Score Géographie (/100)': c.score_geographie || 0,\n    'Score Expérience (/100)': c.score_experience || 0,\n    'Expérience Fermeture Industrielle / Équipement Quai': c.experience_domaine_industriel || 'non évalué',\n    'Commentaire': c.commentaire || ''\n  }\n}));"
+      },
+      "id": "a0000000-0000-0000-0000-000000000090",
+      "name": "Formater Tableau",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 300]
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileFormat": "csv",
+        "options": {
+          "fileName": "sourcing_candidats.csv"
+        }
+      },
+      "id": "a0000000-0000-0000-0000-000000000100",
+      "name": "Export CSV",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [1860, 300]
+    }
+  ],
+  "connections": {
+    "Formulaire Sourcing": {
+      "main": [
+        [
+          {
+            "node": "Analyse Fiche de Poste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude - Analyse": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Analyse Fiche de Poste",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyse Fiche de Poste": {
+      "main": [
+        [
+          {
+            "node": "Générer Requêtes Google",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Générer Requêtes Google": {
+      "main": [
+        [
+          {
+            "node": "Google Custom Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Custom Search": {
+      "main": [
+        [
+          {
+            "node": "Parser et Dédupliquer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser et Dédupliquer": {
+      "main": [
+        [
+          {
+            "node": "Scorer Candidats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude - Scoring": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Scorer Candidats",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scorer Candidats": {
+      "main": [
+        [
+          {
+            "node": "Formater Tableau",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formater Tableau": {
+      "main": [
+        [
+          {
+            "node": "Export CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "recrutement"
+    },
+    {
+      "name": "sourcing"
+    }
+  ]
+}
