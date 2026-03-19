@@ -65,7 +65,7 @@
     },
     {
       "parameters": {
-        "model": "claude-sonnet-4-20250514",
+        "model": "claude-sonnet-4-6-20250514",
         "options": {}
       },
       "id": "a0000000-0000-0000-0000-000000000020",
@@ -166,7 +166,7 @@
     },
     {
       "parameters": {
-        "model": "claude-sonnet-4-20250514",
+        "model": "claude-sonnet-4-6-20250514",
         "options": {
           "maxTokensToSample": 4096
         }
