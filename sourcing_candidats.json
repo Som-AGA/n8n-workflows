@@ -65,20 +65,14 @@
     },
     {
       "parameters": {
-        "model": "claude-sonnet-4-6-20250514",
+        "model": "=claude-sonnet-4-5-20250514",
         "options": {}
       },
       "id": "a0000000-0000-0000-0000-000000000020",
       "name": "Claude - Analyse",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.2,
-      "position": [300, 520],
-      "credentials": {
-        "anthropicApi": {
-          "id": "",
-          "name": ""
-        }
-      }
+      "position": [300, 520]
     },
     {
       "parameters": {
@@ -166,7 +160,7 @@
     },
     {
       "parameters": {
-        "model": "claude-sonnet-4-6-20250514",
+        "model": "=claude-sonnet-4-5-20250514",
         "options": {
           "maxTokensToSample": 4096
         }
@@ -175,13 +169,7 @@
       "name": "Claude - Scoring",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.2,
-      "position": [1340, 520],
-      "credentials": {
-        "anthropicApi": {
-          "id": "",
-          "name": ""
-        }
-      }
+      "position": [1340, 520]
     },
     {
       "parameters": {
