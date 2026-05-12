@@ -1,0 +1,190 @@
+{
+  "name": "Sync Affectation Véhicules - Excel vers GSheet",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sync-affectation-vehicules",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "f1e2d3c4-b5a6-9780-fedc-ba9876543210",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HEADER_AUTH_CRED_ID",
+          "name": "Webhook Somafi Sync"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst body = raw.body || raw;\nconst data = Array.isArray(body.data) ? body.data : [];\nconst nb_lignes = data.length;\nreturn [{ json: { data, nb_lignes } }];"
+      },
+      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "name": "Parse & Count",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "value": "1P7SJNPRt3ME6sj1pFnOZtZ4tRHwLeT9KUBfq26_pgHc",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Affectation",
+          "mode": "name"
+        },
+        "range": "A2:Z"
+      },
+      "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "name": "Vider Affectation",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [680, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const { data } = $input.first().json;\nreturn data.map(row => ({ json: row }));"
+      },
+      "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+      "name": "Split Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1P7SJNPRt3ME6sj1pFnOZtZ4tRHwLeT9KUBfq26_pgHc",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Affectation",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Immatriculation",
+              "displayName": "Immatriculation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Agence",
+              "displayName": "Agence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+      "name": "Append Lignes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1120, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "rows",
+        "include": "noFields",
+        "options": {}
+      },
+      "id": "f6a7b8c9-d0e1-2345-fabc-456789012345",
+      "name": "Aggregate",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, nb_lignes: $('Parse & Count').first().json.nb_lignes }) }}",
+        "options": {}
+      },
+      "id": "a7b8c9d0-e1f2-3456-abcd-567890123456",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{"node": "Parse & Count", "type": "main", "index": 0}]
+      ]
+    },
+    "Parse & Count": {
+      "main": [
+        [{"node": "Vider Affectation", "type": "main", "index": 0}]
+      ]
+    },
+    "Vider Affectation": {
+      "main": [
+        [{"node": "Split Rows", "type": "main", "index": 0}]
+      ]
+    },
+    "Split Rows": {
+      "main": [
+        [{"node": "Append Lignes", "type": "main", "index": 0}]
+      ]
+    },
+    "Append Lignes": {
+      "main": [
+        [{"node": "Aggregate", "type": "main", "index": 0}]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [{"node": "Respond to Webhook", "type": "main", "index": 0}]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
